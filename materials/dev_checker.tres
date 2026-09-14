@@ -1,0 +1,12 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://dd0dbxw6eegbp"]
+
+[ext_resource type="Texture2D" uid="uid://ds00h1ivysbpc" path="res://textures/dev_checker/dev_checker_albedo.png" id="1_5uatv"]
+[ext_resource type="Texture2D" uid="uid://b0jcmgsxvlw3l" path="res://textures/dev_checker/dev_checker_normal.png" id="2_bcoh4"]
+[ext_resource type="Texture2D" uid="uid://cx47eh5t838n5" path="res://textures/dev_checker/dev_checker_roughness.png" id="3_hwl3t"]
+
+[resource]
+albedo_texture = ExtResource("1_5uatv")
+roughness = 0.8
+roughness_texture = ExtResource("3_hwl3t")
+normal_enabled = true
+normal_texture = ExtResource("2_bcoh4")

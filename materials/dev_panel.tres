@@ -1,0 +1,10 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://b5rc7vyawmfks"]
+
+[ext_resource type="Texture2D" uid="uid://bwhdrjqcikwac" path="res://textures/dev_panels/dev_panels_albedo.png" id="1_nmawe"]
+[ext_resource type="Texture2D" uid="uid://cfbu7sgfepolc" path="res://textures/dev_panels/dev_panels_normal.png" id="2_x2nvp"]
+
+[resource]
+albedo_texture = ExtResource("1_nmawe")
+roughness = 0.8
+normal_enabled = true
+normal_texture = ExtResource("2_x2nvp")
