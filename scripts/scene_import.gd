@@ -46,7 +46,7 @@ const PREFAB_PATH := "res://prefabs/"
 const TEXTURE_PATH := "res://textures/"
 const MATERIAL_EXTENSIONS:Array[String] = ['.tres', '.material']
 const PREFAB_EXTENSIONS:Array[String] = ['.tscn', '.glb']
-const TEXTURE_EXTENSIONS:Array[String] = ['.bmp','.dds','.ktx','.exr','.hdr','.jpg','.jpeg','.png','.tga','.webp','.svg']
+const TEXTURE_EXTENSIONS:Array[String] = ['.png','.jpg','.jpeg','.webp','.tga','.bmp','.exr','.hdr','.svg','.dds','.ktx']
 
 var file_path:String
 
@@ -101,10 +101,8 @@ func _post_import(scene:Node) -> Node:
 		
 		elif is_object_prefab(child, scene):
 			missing_prefabs = load_prefab_from_object(scene, child, missing_prefabs)
-			if is_object_asset(child):
-				to_remove.append(child.get_parent())
-			else:
-				to_remove.append(child)
+			if is_object_asset(child): to_remove.append(child.get_parent())
+			else: to_remove.append(child)
 			continue
 		
 		elif child is MeshInstance3D:
@@ -227,8 +225,8 @@ func add_collision_shape_from_mesh(mesh:MeshInstance3D, bodies:Array[StaticBody3
 				trimesh = true
 			if mesh.get_meta(&'extras').has('godot_coll_layer'):
 				layer = int(mesh.get_meta(&'extras')['godot_coll_layer'])
-			if mesh.get_meta(&'extras').has('godot_mask_layer'):
-				mask = int(mesh.get_meta(&'extras')['godot_mask_layer'])
+			if mesh.get_meta(&'extras').has('godot_coll_mask'):
+				mask = int(mesh.get_meta(&'extras')['godot_coll_mask'])
 	
 	if convex:
 		var shape := create_convex_shape(mesh)
@@ -287,10 +285,20 @@ func load_decal_from_object(scene:Node3D, object:Node3D) -> void:
 	decal.set_owner(scene)
 	copy_transform(object, decal)
 	
+	decal.scale = Vector3(1,1,1)
+	decal.size = Vector3(object.scale.x, object.scale.y * 0.1, object.scale.z)
+	
 	if !object.has_meta(&'extras'): return
 	if typeof(object.get_meta(&'extras')) != TYPE_DICTIONARY: return
 	if !object.get_meta(&'extras').has('godot_path'): return
 	if typeof(object.get_meta(&'extras')['godot_path']) != TYPE_STRING: return
+	
+	if object.get_meta(&'extras').has('godot_vis_layers'):
+		if typeof(object.get_meta(&'extras')['godot_vis_layers']) == TYPE_FLOAT:
+			decal.layers = int(object.get_meta(&'extras')['godot_vis_layers'])
+	if object.get_meta(&'extras').has('godot_coll_mask'):
+		if typeof(object.get_meta(&'extras')['godot_coll_mask']) == TYPE_FLOAT:
+			decal.cull_mask = int(object.get_meta(&'extras')['godot_coll_mask'])
 	
 	var texture_name:String = object.get_meta(&'extras')['godot_path'].to_lower()
 	var full_path := false
@@ -315,13 +323,11 @@ func load_decal_from_object(scene:Node3D, object:Node3D) -> void:
 			paths.append(TEXTURE_PATH + texture_name + '/' + texture_name + tex + ext)
 		for p in paths:
 			if ResourceLoader.exists(p):
-				var texture_resource := load(texture_name)
-				if texture_resource is Texture2D:
-					match tex:
-						TSLOT[0], TSLOT[1]: decal.texture_albedo = texture_resource
-						TSLOT[2]: decal.texture_normal = texture_resource
-						TSLOT[3]: decal.texture_orm = texture_resource
-						TSLOT[4]: decal.texture_emission = texture_resource
+				match tex:
+					TSLOT[0], TSLOT[1]: decal.texture_albedo = load(p)
+					TSLOT[2]: decal.texture_normal = load(p)
+					TSLOT[3]: decal.texture_orm = load(p)
+					TSLOT[4]: decal.texture_emission = load(p)
 				break
 
 func load_prefab_from_object(scene:Node3D, object:Node3D, missing_prefabs:Array) -> Array:

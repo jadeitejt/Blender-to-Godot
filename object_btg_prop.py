@@ -53,7 +53,7 @@ def set_gi(self, context):
 def set_vis_layers(self, context):
     objects = bpy.context.selected_objects
     for obj in objects:
-        if obj is not None and obj.type == 'MESH':
+        if obj is not None and (obj.type == 'MESH' or obj.type == 'EMPTY'):
             layer_value = 0
             for layer in obj.b2g_properties.vis_layers:
                 layer_value += 1<<(int(layer) - 1)
@@ -71,7 +71,7 @@ def set_coll_layers(self, context):
 def set_coll_mask(self, context):
     objects = bpy.context.selected_objects
     for obj in objects:
-        if obj is not None and obj.type == 'MESH':
+        if obj is not None and (obj.type == 'MESH' or obj.type == 'EMPTY'):
             layer_value = 0
             for layer in obj.b2g_properties.coll_mask:
                 layer_value += 1<<(int(layer) - 1)
@@ -268,6 +268,15 @@ class VIEW3D_PT_b2gp_panel(bpy.types.Panel):
         
         if active.type == 'EMPTY':
             
+            obj_count = 0
+            for obj in objects:
+                if obj is not None and (obj.type == 'EMPTY'):
+                    obj_count += 1
+                if obj_count > 1:
+                    break
+            should_draw = obj_count > 0
+            if not should_draw: return
+            
             split = layout.split()
             col = split.column(align=True)
             rows = layout.grid_flow(row_major=True, align=True, columns=1)
@@ -278,6 +287,20 @@ class VIEW3D_PT_b2gp_panel(bpy.types.Panel):
             if active.b2g_properties.empty_type == "decal":
                 rows.prop(active.b2g_properties, "path", expand=True)
                 rows.prop(active.b2g_properties, "full_path", expand=True)
+                
+                # CULL MASK
+                split = layout.split()
+                col = split.column(align=True)
+                col.label(icon = 'OVERLAY', text="Cull mask")
+                rows = layout.grid_flow(row_major=True, align=True, columns=5)
+                rows.prop(active.b2g_properties, "coll_mask", expand=True)
+                
+                # VISUAL LAYERS
+                split = layout.split()
+                col = split.column(align=True)
+                col.label(icon = 'RENDERLAYERS', text="Visual layers")
+                rows = layout.grid_flow(row_major=True, align=True, columns=5)
+                rows.prop(active.b2g_properties, "vis_layers", expand=True)
             
             # PREFAB
             if active.b2g_properties.empty_type == "prefab":
@@ -293,74 +316,73 @@ class VIEW3D_PT_b2gp_panel(bpy.types.Panel):
             
             return
         
-        obj_count = 0
-        for obj in objects:
-            if obj is not None and (obj.type == 'MESH'):
-                obj_count += 1
-            if obj_count > 1:
-                break
-        should_draw = obj_count > 0
-        if not should_draw: return
+        if active.type == 'MESH':
         
-        if active.type != 'MESH':
-            return
-        
-        # TYPE
-        split = layout.split()
-        col = split.column(align=True)
-        col.label(icon = 'OUTLINER_DATA_MESH', text="Type")
-        rows = layout.grid_flow(row_major=True, align=True, columns=1)
-        rows.prop(active.b2g_properties, "mesh_type", expand=True)
-        
-        vis = False
-        coll = False
-        for type in active.b2g_properties.mesh_type:
-            if type == 'mesh':
-                vis = True
-            else:
-                coll = True
-        
-        if vis:
-        
-            # SHADOWS
+            obj_count = 0
+            for obj in objects:
+                if obj is not None and (obj.type == 'MESH'):
+                    obj_count += 1
+                if obj_count > 1:
+                    break
+            should_draw = obj_count > 0
+            if not should_draw: return
+            
+            # TYPE
             split = layout.split()
             col = split.column(align=True)
-            col.label(icon = 'LIGHT', text="Shadows")
+            col.label(icon = 'OUTLINER_DATA_MESH', text="Type")
             rows = layout.grid_flow(row_major=True, align=True, columns=1)
-            rows.prop(active.b2g_properties, "shadow_mode", expand=True)
+            rows.prop(active.b2g_properties, "mesh_type", expand=True)
             
-            # GI MODE
-            split = layout.split()
-            col = split.column(align=True)
-            col.label(icon = 'SHADING_RENDERED', text="GI Mode")
-            rows = layout.grid_flow(row_major=True, align=True, columns=1)
-            rows.prop(active.b2g_properties, "gi_mode", expand=True)
+            vis = False
+            coll = False
+            for type in active.b2g_properties.mesh_type:
+                if type == 'mesh':
+                    vis = True
+                else:
+                    coll = True
             
-            # VISUAL LAYERS
-            split = layout.split()
-            col = split.column(align=True)
-            col.label(icon = 'RENDERLAYERS', text="Visual layers")
-            rows = layout.grid_flow(row_major=True, align=True, columns=5)
-            rows.prop(active.b2g_properties, "vis_layers", expand=True)
-        
-        if coll:
+            if vis:
             
-            # COLLISION LAYERS
-            split = layout.split()
-            col = split.column(align=True)
-            col.label(icon = 'SPHERE', text="Collision layers")
-            rows = layout.grid_flow(row_major=True, align=True, columns=5)
-            rows.prop(active.b2g_properties, "coll_layers", expand=True)
+                # SHADOWS
+                split = layout.split()
+                col = split.column(align=True)
+                col.label(icon = 'LIGHT', text="Shadows")
+                rows = layout.grid_flow(row_major=True, align=True, columns=1)
+                rows.prop(active.b2g_properties, "shadow_mode", expand=True)
+                
+                # GI MODE
+                split = layout.split()
+                col = split.column(align=True)
+                col.label(icon = 'SHADING_RENDERED', text="GI Mode")
+                rows = layout.grid_flow(row_major=True, align=True, columns=1)
+                rows.prop(active.b2g_properties, "gi_mode", expand=True)
+                
+                # VISUAL LAYERS
+                split = layout.split()
+                col = split.column(align=True)
+                col.label(icon = 'RENDERLAYERS', text="Visual layers")
+                rows = layout.grid_flow(row_major=True, align=True, columns=5)
+                rows.prop(active.b2g_properties, "vis_layers", expand=True)
             
-            # COLLISION MASK
-            split = layout.split()
-            col = split.column(align=True)
-            col.label(icon = 'OVERLAY', text="Collision mask")
-            rows = layout.grid_flow(row_major=True, align=True, columns=5)
-            rows.prop(active.b2g_properties, "coll_mask", expand=True)
-        
-        if not vis and not coll:
-            pass
+            if coll:
+                
+                # COLLISION LAYERS
+                split = layout.split()
+                col = split.column(align=True)
+                col.label(icon = 'SPHERE', text="Collision layers")
+                rows = layout.grid_flow(row_major=True, align=True, columns=5)
+                rows.prop(active.b2g_properties, "coll_layers", expand=True)
+                
+                # COLLISION MASK
+                split = layout.split()
+                col = split.column(align=True)
+                col.label(icon = 'OVERLAY', text="Collision mask")
+                rows = layout.grid_flow(row_major=True, align=True, columns=5)
+                rows.prop(active.b2g_properties, "coll_mask", expand=True)
+            
+            if not vis and not coll:
+                pass
 
 ### register ###
 

@@ -1,7 +1,16 @@
 [gd_scene format=3 uid="uid://devfibnrjnirp"]
 
-[ext_resource type="PackedScene" uid="uid://ccisub005s4k1" path="res://scenes/Scene.glb" id="1_37kl0"]
+[ext_resource type="PackedScene" uid="uid://05v4d0jr6vr4" path="res://scenes/Scene.glb" id="1_37kl0"]
 
 [node name="Node3D" type="Node3D" unique_id=431057588]
 
-[node name="Scene" parent="." unique_id=1716209024 instance=ExtResource("1_37kl0")]
+[node name="Scene" parent="." unique_id=1184505367 instance=ExtResource("1_37kl0")]
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1112028824]
+transform = Transform3D(0.8660255, -0.43301272, 0.25, 5.166987e-10, 0.5, 0.8660255, -0.5, -0.75000006, 0.43301275, 0, 8, 0)
+light_energy = 1.5
+shadow_enabled = true
+
+[node name="Camera3D" type="Camera3D" parent="." unique_id=673663216]
+transform = Transform3D(0.86602545, -0.1294095, 0.4829629, 0, 0.9659259, 0.25881904, -0.5, -0.22414386, 0.8365163, 2, 4, 7)
+fov = 50.0
