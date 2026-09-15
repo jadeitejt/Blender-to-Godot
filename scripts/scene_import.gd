@@ -122,6 +122,9 @@ func _post_import(scene:Node) -> Node:
 			else:
 				to_remove.append(child)
 			continue
+		
+		else:
+			pass
 	
 	if offset != Vector3() and scene is Node3D:
 		(scene as Node3D).position = Vector3()
@@ -169,7 +172,6 @@ func is_object_decal(object:Node) -> bool:
 	return true
 
 func is_object_prefab(object:Node, scene:Node) -> bool:
-	if object.get_parent() == scene: return false
 	if !object.has_meta(&'extras'): return false
 	if typeof(object.get_meta(&'extras')) != TYPE_DICTIONARY: return false
 	if !object.get_meta(&'extras').has('godot_type'): return false
@@ -177,6 +179,7 @@ func is_object_prefab(object:Node, scene:Node) -> bool:
 	if !object.get_meta(&'extras').has('godot_path'): return false
 	if typeof(object.get_meta(&'extras')['godot_path']) != TYPE_STRING: return false
 	if object.get_meta(&'extras')['godot_path'] == '': return false
+	if is_object_asset(object) and object.get_parent() == scene: return false
 	return true
 
 func is_object_asset(object:Node) -> bool:

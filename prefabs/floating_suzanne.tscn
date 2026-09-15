@@ -1,0 +1,10 @@
+[gd_scene format=3 uid="uid://df062sa0adjad"]
+
+[ext_resource type="PackedScene" uid="uid://blpnoypjihpcj" path="res://models/suzanne.glb" id="1_ejeru"]
+[ext_resource type="Script" uid="uid://c8cnlhnbvh6ol" path="res://scripts/rotating.gd" id="2_o1xbs"]
+
+[node name="Node3D" type="Node3D" unique_id=1367133477]
+
+[node name="suzanne" parent="." unique_id=1211669757 instance=ExtResource("1_ejeru")]
+transform = Transform3D(0.26781404, -0.03735907, 0.42057094, 0.048017938, 0.49750265, 0.013615677, -0.41948768, 0.03309696, 0.2700642, 0, -0.24476345, 0.09621309)
+script = ExtResource("2_o1xbs")
