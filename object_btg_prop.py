@@ -66,7 +66,7 @@ def set_coll_layers(self, context):
             layer_value = 0
             for layer in obj.b2g_properties.coll_layers:
                 layer_value += 1<<(int(layer) - 1)
-            obj['godot_coll_layers'] = layer_value
+            obj['godot_coll_layer'] = layer_value
 
 def set_coll_mask(self, context):
     objects = bpy.context.selected_objects
@@ -84,6 +84,15 @@ def set_path(self, context):
             obj['godot_path'] = obj.b2g_properties.path
             obj['godot_full_path'] = obj.b2g_properties.full_path
             obj['godot_prefab_asset'] = obj.b2g_properties.asset
+
+def set_rigidprop(self, context):
+    objects = bpy.context.selected_objects
+    for obj in objects:
+        if obj is not None and obj.type == 'EMPTY':
+            obj['godot_rigid_mass'] = obj.b2g_properties.rigid_mass
+            obj['godot_rigid_gravity'] = obj.b2g_properties.rigid_gravity
+            obj['godot_rigid_ldamp'] = obj.b2g_properties.rigid_ldamp
+            obj['godot_rigid_adamp'] = obj.b2g_properties.rigid_adamp
 
 def set_mat_skip(self, context):
     objects = bpy.context.selected_objects
@@ -224,6 +233,8 @@ class B2GP_Config(bpy.types.PropertyGroup):
             ('lmprobe',     'LightmapProbe',    'Import as LightmapProbe'	'', 2),
             ('decal',		'Decal',			'Import as Decal'			'', 3),
             ('prefab', 	    'Prefab',           'Replace with prefab'		'', 4),
+            ('rigid', 	    'RigidBody3D',      'Replace with prefab'		'', 5),
+            ('animatable', 	'AnimatableBody3D', 'Replace with prefab'		'', 6),
         ],
         default = 'node3d',
         update = set_type)
@@ -232,6 +243,10 @@ class B2GP_Config(bpy.types.PropertyGroup):
         description = 'Enable when this empty is part of a collection asset',
         default = False,
         update = set_path)
+    rigid_mass      :    bpy.props.FloatProperty(	name = 'Mass',          step = 0.001,    default = 1.0,	update = set_rigidprop)
+    rigid_gravity   :    bpy.props.FloatProperty(	name = 'Gravity',       step = 0.001,    default = 1.0,	update = set_rigidprop)
+    rigid_ldamp     :    bpy.props.FloatProperty(	name = 'Linear damp',   step = 0.001,    default = 0.0,	update = set_rigidprop)
+    rigid_adamp     :    bpy.props.FloatProperty(	name = 'Angular damp',  step = 0.001,    default = 0.0,	update = set_rigidprop)
 
 ### operator ###
 
@@ -312,7 +327,34 @@ class VIEW3D_PT_b2gp_panel(bpy.types.Panel):
                 rows.label(text="the collection to import correctly")
                 rows.operator("b2gp.set_offset", text="Set offset")
                 rows.enabled = active.b2g_properties.asset
+            
+            if active.b2g_properties.empty_type == "rigid":
                 
+                split = layout.split()
+                col = split.column(align=True)
+                rows = layout.grid_flow(row_major=True, align=True, columns=1)
+                rows.prop(active.b2g_properties, "rigid_mass", expand=True)
+                rows.prop(active.b2g_properties, "rigid_gravity", expand=True)
+                rows.prop(active.b2g_properties, "rigid_ldamp", expand=True)
+                rows.prop(active.b2g_properties, "rigid_adamp", expand=True)
+            
+            if active.b2g_properties.empty_type == "rigid" or active.b2g_properties.empty_type == "animatable":
+                
+                rows.label(text="Collision settings override children")
+                
+                # COLLISION LAYERS
+                split = layout.split()
+                col = split.column(align=True)
+                col.label(icon = 'SPHERE', text="Collision layers")
+                rows = layout.grid_flow(row_major=True, align=True, columns=5)
+                rows.prop(active.b2g_properties, "coll_layers", expand=True)
+                
+                # COLLISION MASK
+                split = layout.split()
+                col = split.column(align=True)
+                col.label(icon = 'OVERLAY', text="Collision mask")
+                rows = layout.grid_flow(row_major=True, align=True, columns=5)
+                rows.prop(active.b2g_properties, "coll_mask", expand=True)
             
             return
         
@@ -406,3 +448,4 @@ if __name__ == "__main__":
 
 
 
+    

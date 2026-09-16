@@ -58,6 +58,8 @@ func _post_import(scene:Node) -> Node:
 	var missing_prefabs:Array[String] = []
 	var missing_materials:Array[String] = []
 	var static_bodies:Array[StaticBody3D] = []
+	var rigid_bodies:Array[RigidBody3D] = []
+	var animatable_bodies:Array[AnimatableBody3D] = []
 	var to_remove := []
 	
 	var offset := Vector3()
@@ -100,12 +102,6 @@ func _post_import(scene:Node) -> Node:
 			continue
 		
 		elif is_object_prefab(child, scene):
-			missing_prefabs = load_prefab_from_object(scene, child, missing_prefabs)
-			if is_object_asset(child): to_remove.append(child.get_parent())
-			else: to_remove.append(child)
-			continue
-		
-		elif child is MeshInstance3D:
 			var valid := true
 			var parent:Node = child.get_parent()
 			while true:
@@ -114,17 +110,86 @@ func _post_import(scene:Node) -> Node:
 				parent = parent.get_parent()
 			if !valid: continue
 			
-			if is_object_collision_shape(child):
-				add_collision_shape_from_mesh(child, static_bodies, scene)
-			if is_object_visible_mesh(child):
-				apply_metadata_config(child)
-				load_replacement_materials(child, missing_materials)
-			else:
-				to_remove.append(child)
+			missing_prefabs = load_prefab_from_object(scene, child, missing_prefabs)
+			if child.get_child_count() == 0:
+				if is_object_asset(child):
+					to_remove.append(child.get_parent())
+				else:
+					to_remove.append(child)
 			continue
 		
-		else:
-			pass
+		elif is_object_rigidbody(child):
+			var rb := RigidBody3D.new()
+			
+			if child.get_meta(&"extras").has("godot_rigid_mass"):
+				rb.mass = child.get_meta(&"extras")["godot_rigid_mass"]
+			if child.get_meta(&"extras").has("godot_rigid_gravity"):
+				rb.gravity_scale = child.get_meta(&"extras")["godot_rigid_gravity"]
+			if child.get_meta(&"extras").has("godot_rigid_ldamp"):
+				rb.linear_damp = child.get_meta(&"extras")["godot_rigid_ldamp"]
+			if child.get_meta(&"extras").has("godot_rigid_adamp"):
+				rb.angular_damp = child.get_meta(&"extras")["godot_rigid_adamp"]
+			
+			rigid_bodies.append(rb)
+			child.get_parent().add_child(rb)
+			rb.set_owner(scene)
+			copy_transform(child, rb)
+			for c in child.get_children():
+				child.remove_child(c)
+				c.set_owner(null)
+				rb.add_child(c)
+				c.set_owner(scene)
+			to_remove.append(child)
+		
+		elif is_object_animatablebody(child):
+			var ab := AnimatableBody3D.new()
+			animatable_bodies.append(ab)
+			child.get_parent().add_child(ab)
+			ab.set_owner(scene)
+			copy_transform(child, ab)
+			for c in child.get_children():
+				child.remove_child(c)
+				c.set_owner(null)
+				ab.add_child(c)
+				c.set_owner(scene)
+			to_remove.append(child)
+		
+		elif child is MeshInstance3D:
+			var valid := true
+			var parent:Node = child.get_parent()
+			var body:Node = null
+			while true:
+				if parent == null: break
+				if animatable_bodies.has(parent):
+					body = parent; break
+				if rigid_bodies.has(parent):
+					body = parent; break
+				if to_remove.has(parent):
+					valid = false; break
+				parent = parent.get_parent()
+			if !valid: continue
+			valid = false
+			if is_object_visible_mesh(child):
+				valid = true
+				apply_meta_config(child)
+				load_replacement_materials(child, missing_materials)
+			if is_object_collision_shape(child):
+				if body != null:
+					for cs in get_collision_shapes_from_mesh(child):
+						body.add_child(cs)
+						cs.set_owner(scene)
+						set_local_root_transform(cs, get_local_root_transform(child))
+				else:
+					var layer := 1
+					var mask := 1
+					if child.get_meta(&'extras').has('godot_coll_layer'):
+						layer = int(child.get_meta(&'extras')['godot_coll_layer'])
+					if child.get_meta(&'extras').has('godot_coll_mask'):
+						mask = int(child.get_meta(&'extras')['godot_coll_mask'])
+					for cs in get_collision_shapes_from_mesh(child):
+						add_collision_shape_to_scene(scene, static_bodies, cs, get_local_root_transform(child), layer, mask)
+				if !valid:
+					to_remove.append(child)
 	
 	if offset != Vector3() and scene is Node3D:
 		(scene as Node3D).position = Vector3()
@@ -134,7 +199,6 @@ func _post_import(scene:Node) -> Node:
 	
 	missing_prefabs.sort()
 	missing_materials.sort()
-	
 	for prop in missing_prefabs:
 		push_warning("Importing '" + scene.name + "' prop not found: '" + prop + "'")
 	for mat in missing_materials:
@@ -142,108 +206,154 @@ func _post_import(scene:Node) -> Node:
 	
 	return scene
 
+#---
+
 func get_all_children(parent:Node, arr:=[]) -> Array:
 	arr.push_back(parent)
 	for child in parent.get_children():
 		get_all_children(child, arr)
 	return arr
 
-func is_object_reflectionprobe(object:Node) -> bool:
-	if object is Node3D and object.name.begins_with("rprobe"): return true
+#---
+
+func get_local_root_transform(node:Node3D) -> Transform3D:
+	var xform := Transform3D()
+	var parent := node.get_parent_node_3d()
+	
+	if parent == null:
+		xform = node.transform
+	else:
+		xform = get_local_root_transform(parent) * node.transform
+	
+	return xform.orthonormalized()
+
+func set_local_root_transform(node:Node3D, transform:Transform3D) -> void:
+	var parent := node.get_parent_node_3d()
+	var xform:Transform3D = transform if parent == null else get_local_root_transform(parent).affine_inverse() * transform
+	node.transform = xform
+
+func copy_transform(node_from:Node3D, node_to:Node3D) -> void:
+	set_local_root_transform(node_to, get_local_root_transform(node_from))
+
+#---
+
+func object_has_metadata(object:Node) -> bool:
 	if !object.has_meta(&'extras'): return false
 	if typeof(object.get_meta(&'extras')) != TYPE_DICTIONARY: return false
 	if !object.get_meta(&'extras').has('godot_type'): return false
-	if object.get_meta(&'extras')['godot_type'] != "rprobe": return false
+	return true
+
+func is_object_godottype(object:Node, type:String) -> bool:
+	if !object_has_metadata(object): return false
+	if typeof(object.get_meta(&'extras')['godot_type']) != TYPE_STRING: return false
+	if object.get_meta(&'extras')['godot_type'] != type: return false
+	return true
+
+func get_meta_path(object:Node) -> String:
+	if !object_has_metadata(object): return ""
+	if !object.get_meta(&"extras").has("godot_path"): return ""
+	if object.get_meta(&"extras")["godot_path"] == "": return ""
+	return object.get_meta(&"extras")["godot_path"]
+
+func apply_meta_config(mesh:MeshInstance3D) -> void:
+	if !mesh.has_meta(&'extras'): return
+	if typeof(mesh.get_meta(&'extras')) != TYPE_DICTIONARY: return
+	
+	if mesh.get_meta(&'extras').has('godot_vis_layers'):
+		if typeof(mesh.get_meta(&'extras')['godot_vis_layers']) == TYPE_FLOAT:
+			mesh.layers = int(mesh.get_meta(&'extras')['godot_vis_layers'])
+	
+	if mesh.get_meta(&'extras').has('godot_gi_mode'):
+		if typeof(mesh.get_meta(&'extras')['godot_gi_mode']) == TYPE_STRING:
+			match mesh.get_meta(&'extras')['godot_gi_mode']:
+				'static': mesh.gi_mode = GeometryInstance3D.GI_MODE_STATIC
+				'dynamic': mesh.gi_mode = GeometryInstance3D.GI_MODE_DYNAMIC
+				'disabled': mesh.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+	
+	if mesh.get_meta(&'extras').has('godot_shadow_mode'):
+		if typeof(mesh.get_meta(&'extras')['godot_shadow_mode']) == TYPE_STRING:
+			match mesh.get_meta(&'extras')['godot_shadow_mode']:
+				'enabled': mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+				'disabled': mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				'double': mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_DOUBLE_SIDED
+				'sh_only': mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+
+#---
+
+func is_object_reflectionprobe(object:Node) -> bool:
+	if object is Node3D and object.name.begins_with("rprobe"): return true
+	if !is_object_godottype(object, "rprobe"): return false
 	return true
 
 func is_object_lightmapprobe(object:Node) -> bool:
 	if object is Node3D and object.name.begins_with("lmprobe"): return true
-	if !object.has_meta(&'extras'): return false
-	if typeof(object.get_meta(&'extras')) != TYPE_DICTIONARY: return false
-	if !object.get_meta(&'extras').has('godot_type'): return false
-	if object.get_meta(&'extras')['godot_type'] != "lmprobe": return false
+	if !is_object_godottype(object, "lmprobe"): return false
 	return true
 
 func is_object_decal(object:Node) -> bool:
-	if !object.has_meta(&'extras'): return false
-	if typeof(object.get_meta(&'extras')) != TYPE_DICTIONARY: return false
-	if !object.get_meta(&'extras').has('godot_type'): return false
-	if object.get_meta(&'extras')['godot_type'] != "decal": return false
+	if !is_object_godottype(object, "decal"): return false
 	return true
 
 func is_object_prefab(object:Node, scene:Node) -> bool:
-	if !object.has_meta(&'extras'): return false
-	if typeof(object.get_meta(&'extras')) != TYPE_DICTIONARY: return false
-	if !object.get_meta(&'extras').has('godot_type'): return false
-	if !object.get_meta(&'extras')['godot_type'] == "prefab": return false
-	if !object.get_meta(&'extras').has('godot_path'): return false
-	if typeof(object.get_meta(&'extras')['godot_path']) != TYPE_STRING: return false
-	if object.get_meta(&'extras')['godot_path'] == '': return false
+	if !is_object_godottype(object, "prefab"): return false
+	if get_meta_path(object) == "": return false
 	if is_object_asset(object) and object.get_parent() == scene: return false
 	return true
 
+func is_object_rigidbody(object:Node) -> bool:
+	if !is_object_godottype(object, "rigid"): return false
+	return true
+
+func is_object_animatablebody(object:Node) -> bool:
+	if !is_object_godottype(object, "animatable"): return false
+	return true
+
 func is_object_asset(object:Node) -> bool:
-	if !object.has_meta(&'extras'): return false
-	if typeof(object.get_meta(&'extras')) != TYPE_DICTIONARY: return false
-	if !object.get_meta(&'extras').has('godot_type'): return false
-	if !object.get_meta(&'extras')['godot_type'] == "prefab": return false
+	if !is_object_godottype(object, "prefab"): return false
+	if get_meta_path(object) == "": return false
 	if !object.get_meta(&'extras').has('godot_prefab_asset'): return false
 	return object.get_meta(&'extras')['godot_prefab_asset']
 
-func is_object_collision_shape(object:MeshInstance3D) -> bool:
-	if !object.has_meta(&'extras'): return false
-	if typeof(object.get_meta(&'extras')) != TYPE_DICTIONARY: return false
-	
-	if object.get_meta(&'extras').has('godot_type'):
-		var types := (object.get_meta(&'extras')['godot_type'] as String).split(';', false)
-		if types.has('convex') or types.has('trimesh'):
-			return true
-	
-	return false
-
-func is_object_visible_mesh(object:MeshInstance3D) -> bool:
-	if !object.has_meta(&'extras'): return true
-	if typeof(object.get_meta(&'extras')) != TYPE_DICTIONARY: return true
-	if !object.get_meta(&'extras').has('godot_type'): return true
-	
+func is_object_collision_shape(object:Node) -> bool:
+	if object is not MeshInstance3D: return false
+	if !object_has_metadata(object): return false
 	var types := (object.get_meta(&'extras')['godot_type'] as String).split(';', false)
-	if object.get_meta(&'extras')['godot_type'] != '' and !types.has('mesh'):
-		return false
-	
+	if !(types.has('convex') or types.has('trimesh')): return false
 	return true
 
-func add_collision_shape_from_mesh(mesh:MeshInstance3D, bodies:Array[StaticBody3D], scene:Node) -> void:
+func is_object_visible_mesh(object:Node) -> bool:
+	if object is not MeshInstance3D: return false
+	if !object_has_metadata(object): return true
+	var types := (object.get_meta(&'extras')['godot_type'] as String).split(';', false)
+	if object.get_meta(&'extras')['godot_type'] != '' and !types.has('mesh'): return false
+	return true
+
+#---
+
+func get_collision_shapes_from_mesh(mesh:MeshInstance3D) -> Array[CollisionShape3D]:
+	var result:Array[CollisionShape3D]
 	var convex := false
 	var trimesh := false
-	var layer := 1
-	var mask := 1
-	
 	if mesh.has_meta(&'extras'):
 		if typeof(mesh.get_meta(&'extras')) == TYPE_DICTIONARY:
-			
 			var types := (mesh.get_meta(&'extras')['godot_type'] as String).split(';', false)
 			if types.has('convex'):
 				convex = true
 			if types.has('trimesh'):
 				trimesh = true
-			if mesh.get_meta(&'extras').has('godot_coll_layer'):
-				layer = int(mesh.get_meta(&'extras')['godot_coll_layer'])
-			if mesh.get_meta(&'extras').has('godot_coll_mask'):
-				mask = int(mesh.get_meta(&'extras')['godot_coll_mask'])
-	
 	if convex:
 		var shape := create_convex_shape(mesh)
 		var collision_shape := CollisionShape3D.new()
 		collision_shape.shape = shape
 		collision_shape.name = 'CollisionShape3DConvex' + mesh.name
-		add_collision_shape_to_scene(scene, bodies, collision_shape, get_local_root_transform(mesh), layer, mask)
-	
+		result.append(collision_shape)
 	if trimesh:
 		var shape := create_concave_shape(mesh)
 		var collision_shape := CollisionShape3D.new()
 		collision_shape.shape = shape
 		collision_shape.name = 'CollisionShape3DTriMesh' + mesh.name
-		add_collision_shape_to_scene(scene, bodies, collision_shape, get_local_root_transform(mesh), layer, mask)
+		result.append(collision_shape)
+	return result
 
 func add_collision_shape_to_scene(scene:Node3D, bodies:Array[StaticBody3D], coll_shape:CollisionShape3D, trans:Transform3D, layer:int, mask:int) -> void:
 	var collision_body:StaticBody3D = null
@@ -282,6 +392,8 @@ func create_concave_shape(mesh:MeshInstance3D) -> ConcavePolygonShape3D:
 	concave_shape.set_faces(verts)
 	return concave_shape
 
+#---
+
 func load_decal_from_object(scene:Node3D, object:Node3D) -> void:
 	var decal := Decal.new()
 	object.get_parent().add_child(decal)
@@ -302,6 +414,8 @@ func load_decal_from_object(scene:Node3D, object:Node3D) -> void:
 	if object.get_meta(&'extras').has('godot_coll_mask'):
 		if typeof(object.get_meta(&'extras')['godot_coll_mask']) == TYPE_FLOAT:
 			decal.cull_mask = int(object.get_meta(&'extras')['godot_coll_mask'])
+	else:
+		decal.cull_mask = 1
 	
 	var texture_name:String = object.get_meta(&'extras')['godot_path'].to_lower()
 	var full_path := false
@@ -465,45 +579,3 @@ func load_replacement_materials(mesh:MeshInstance3D, missing_materials:Array) ->
 						missing_materials.append(material_name)
 	
 	return missing_materials
-
-func apply_metadata_config(mesh:MeshInstance3D) -> void:
-	if !mesh.has_meta(&'extras'): return
-	if typeof(mesh.get_meta(&'extras')) != TYPE_DICTIONARY: return
-	
-	if mesh.get_meta(&'extras').has('godot_vis_layers'):
-		if typeof(mesh.get_meta(&'extras')['godot_vis_layers']) == TYPE_FLOAT:
-			mesh.layers = int(mesh.get_meta(&'extras')['godot_vis_layers'])
-	
-	if mesh.get_meta(&'extras').has('godot_gi_mode'):
-		if typeof(mesh.get_meta(&'extras')['godot_gi_mode']) == TYPE_STRING:
-			match mesh.get_meta(&'extras')['godot_gi_mode']:
-				'static': mesh.gi_mode = GeometryInstance3D.GI_MODE_STATIC
-				'dynamic': mesh.gi_mode = GeometryInstance3D.GI_MODE_DYNAMIC
-				'disabled': mesh.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
-	
-	if mesh.get_meta(&'extras').has('godot_shadow_mode'):
-		if typeof(mesh.get_meta(&'extras')['godot_shadow_mode']) == TYPE_STRING:
-			match mesh.get_meta(&'extras')['godot_shadow_mode']:
-				'enabled': mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-				'disabled': mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-				'double': mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_DOUBLE_SIDED
-				'sh_only': mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
-
-func get_local_root_transform(node:Node3D) -> Transform3D:
-	var xform := Transform3D()
-	var parent := node.get_parent_node_3d()
-	
-	if parent == null:
-		xform = node.transform
-	else:
-		xform = get_local_root_transform(parent) * node.transform
-	
-	return xform.orthonormalized()
-
-func set_local_root_transform(node:Node3D, transform:Transform3D) -> void:
-	var parent := node.get_parent_node_3d()
-	var xform:Transform3D = transform if parent == null else get_local_root_transform(parent).affine_inverse() * transform
-	node.transform = xform
-
-func copy_transform(node_from:Node3D, node_to:Node3D) -> void:
-	set_local_root_transform(node_to, get_local_root_transform(node_from))

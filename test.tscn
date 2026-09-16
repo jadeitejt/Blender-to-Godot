@@ -2,6 +2,16 @@
 
 [ext_resource type="PackedScene" uid="uid://05v4d0jr6vr4" path="res://scenes/Scene.glb" id="1_37kl0"]
 
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_oep0j"]
+energy_multiplier = 1.5
+
+[sub_resource type="Sky" id="Sky_b4ivv"]
+sky_material = SubResource("ProceduralSkyMaterial_oep0j")
+
+[sub_resource type="Environment" id="Environment_yo48w"]
+background_mode = 2
+sky = SubResource("Sky_b4ivv")
+
 [node name="Node3D" type="Node3D" unique_id=431057588]
 
 [node name="Scene" parent="." unique_id=1184505367 instance=ExtResource("1_37kl0")]
@@ -12,5 +22,8 @@ light_energy = 1.5
 shadow_enabled = true
 
 [node name="Camera3D" type="Camera3D" parent="." unique_id=673663216]
-transform = Transform3D(0.86602545, -0.1294095, 0.4829629, 0, 0.9659259, 0.25881904, -0.5, -0.22414386, 0.8365163, 2, 4, 7)
+transform = Transform3D(0.83919924, -0.140752, 0.5252937, 7.450581e-09, 0.9659259, 0.25881904, -0.543824, -0.21720073, 0.8106041, 2, 4.5, 7)
 fov = 50.0
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1487712735]
+environment = SubResource("Environment_yo48w")

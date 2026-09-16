@@ -11,6 +11,7 @@ config_version=5
 [application]
 
 config/name="BlenderToGodotExample"
+run/main_scene="uid://devfibnrjnirp"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"
 
@@ -22,6 +23,10 @@ window/stretch/aspect="expand"
 [dotnet]
 
 project/assembly_name="BlenderToGodotExample"
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/disable_middle_click_paste/plugin.cfg", "res://addons/toggle_overlays/plugin.cfg")
 
 [filesystem]
 
